@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 8%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 91 100% 59%;
+    --primary-foreground: 0 0% 8%;
+
+    --secondary: 0 0% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 91 100% 59%;
+    --accent-foreground: 0 0% 8%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 22%;
+    --input: 0 0% 18%;
+    --ring: 91 100% 59%;
+
+    --radius: 0.5rem;
+
+    --neon-glow: 91 100% 59%;
+    --neon-glow-soft: 91 80% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .glow-neon {
+    box-shadow: 0 0 20px hsl(var(--neon-glow) / 0.5),
+                0 0 40px hsl(var(--neon-glow) / 0.3);
+  }
+  
+  .glow-neon-strong {
+    box-shadow: 0 0 30px hsl(var(--neon-glow) / 0.8),
+                0 0 60px hsl(var(--neon-glow) / 0.5),
+                0 0 90px hsl(var(--neon-glow) / 0.3);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 10px hsl(var(--neon-glow) / 0.8),
+                 0 0 20px hsl(var(--neon-glow) / 0.5);
+  }
+}
