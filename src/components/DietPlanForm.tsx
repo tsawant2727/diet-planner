@@ -69,6 +69,14 @@ export const DietPlanForm = () => {
       return;
     }
 
+    // On some mobile browsers, the last typed character may not commit
+    // if an input is still focused. Blur the active element and wait a tick.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && typeof active.blur === "function") {
+      active.blur();
+    }
+    await new Promise((r) => setTimeout(r, 0));
+
     setIsGenerating(true);
     try {
       await generateDietPlanPDF(formData, meals);

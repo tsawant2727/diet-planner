@@ -39,6 +39,7 @@ const WHITE: [number, number, number] = [255, 255, 255];
 async function loadSvgAsPngDataUrl(src: string, pixelWidth: number, pixelHeight: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement("canvas");
       canvas.width = pixelWidth;
@@ -48,12 +49,20 @@ async function loadSvgAsPngDataUrl(src: string, pixelWidth: number, pixelHeight:
         reject(new Error("Canvas context not available"));
         return;
       }
-      ctx.clearRect(0, 0, pixelWidth, pixelHeight);
-      ctx.drawImage(img, 0, 0, pixelWidth, pixelHeight);
-      resolve(canvas.toDataURL("image/png"));
+      try {
+        ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+        ctx.drawImage(img, 0, 0, pixelWidth, pixelHeight);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e);
+      }
     };
     img.onerror = (e) => reject(e);
-    img.src = src;
+    try {
+      img.src = encodeURI(src);
+    } catch {
+      img.src = src;
+    }
   });
 }
 
@@ -71,13 +80,21 @@ async function loadImageAsPngDataUrl(src: string, opacity = 0.70): Promise<strin
         reject(new Error("Canvas context not available"));
         return;
       }
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.globalAlpha = Math.max(0, Math.min(opacity, 1));
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/png"));
+      try {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = Math.max(0, Math.min(opacity, 1));
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/png"));
+      } catch (e) {
+        reject(e);
+      }
     };
     img.onerror = (e) => reject(e);
-    img.src = src;
+    try {
+      img.src = encodeURI(src);
+    } catch {
+      img.src = src;
+    }
   });
 }
 
@@ -90,22 +107,40 @@ export const generateDietPlanPDF = async (formData: FormData, meals: MealData) =
 
   // Preload logo (convert SVG to PNG data URL for jsPDF)
   // Served from public/ as /Asset 41.svg
-  const logoPngDataUrl = await loadSvgAsPngDataUrl("/Asset 41.svg", 800, 160);
-  const logoProps = doc.getImageProperties(logoPngDataUrl);
-  const desiredLogoHeight = 16; // mm, fits in header bar comfortably
-  const logoAspect = logoProps.width / logoProps.height;
-  const desiredLogoWidth = desiredLogoHeight * logoAspect;
+  let logoPngDataUrl: string | undefined;
+  let desiredLogoWidth = 0;
+  let desiredLogoHeight = 16; // mm, fits in header bar comfortably
+  try {
+    const png = await loadSvgAsPngDataUrl("/Asset 41.svg", 800, 160);
+    const logoProps = doc.getImageProperties(png);
+    const logoAspect = logoProps.width / logoProps.height;
+    desiredLogoWidth = desiredLogoHeight * logoAspect;
+    logoPngDataUrl = png;
+  } catch {
+    // Logo not critical; proceed without it
+    logoPngDataUrl = undefined;
+  }
 
   // Preload light background image (served from public/)
-  const bgImagePngDataUrl = await loadImageAsPngDataUrl("/Screenshot 2025-11-01 at 2.06.24 PM.png", 0.12);
-  const bgProps = doc.getImageProperties(bgImagePngDataUrl);
-  const bgAspect = bgProps.width / bgProps.height;
-  const pageAspect = pageWidth / pageHeight;
-  // Cover-fit calculation
-  const bgWidth = bgAspect >= pageAspect ? pageHeight * bgAspect : pageWidth;
-  const bgHeight = bgAspect >= pageAspect ? pageHeight : pageWidth / bgAspect;
-  const bgX = (pageWidth - bgWidth) / 2;
-  const bgY = (pageHeight - bgHeight) / 2;
+  let bgImagePngDataUrl: string | undefined;
+  let bgWidth = 0;
+  let bgHeight = 0;
+  let bgX = 0;
+  let bgY = 0;
+  try {
+    const png = await loadImageAsPngDataUrl("/Screenshot 2025-11-01 at 2.06.24 PM.png", 0.12);
+    const bgProps = doc.getImageProperties(png);
+    const bgAspect = bgProps.width / bgProps.height;
+    const pageAspect = pageWidth / pageHeight;
+    // Cover-fit calculation
+    bgWidth = bgAspect >= pageAspect ? pageHeight * bgAspect : pageWidth;
+    bgHeight = bgAspect >= pageAspect ? pageHeight : pageWidth / bgAspect;
+    bgX = (pageWidth - bgWidth) / 2;
+    bgY = (pageHeight - bgHeight) / 2;
+    bgImagePngDataUrl = png;
+  } catch {
+    bgImagePngDataUrl = undefined;
+  }
 
   // Track which pages we've painted (background + header), to avoid duplicates with multiple tables
   const backgroundPaintedPages = new Set<number>();
@@ -168,7 +203,9 @@ export const generateDietPlanPDF = async (formData: FormData, meals: MealData) =
     doc.rect(0, 0, pageWidth, pageHeight, "F");
     // Light background image (watermark style), behind content
     try {
-      doc.addImage(bgImagePngDataUrl, "PNG", bgX, bgY, bgWidth, bgHeight);
+      if (bgImagePngDataUrl) {
+        doc.addImage(bgImagePngDataUrl, "PNG", bgX, bgY, bgWidth, bgHeight);
+      }
     } catch {
       // ignore if image fails; keep solid background
     }
@@ -183,9 +220,15 @@ export const generateDietPlanPDF = async (formData: FormData, meals: MealData) =
     doc.rect(0, 0, pageWidth, 45, "F");
     // Centered logo only on first page
     if (currentPage === 1) {
-      const logoX = (pageWidth - desiredLogoWidth) / 2;
-      const logoY = 14; // visually centered in header bar
-      doc.addImage(logoPngDataUrl, "PNG", logoX, logoY, desiredLogoWidth, desiredLogoHeight);
+      if (logoPngDataUrl && desiredLogoWidth > 0) {
+        const logoX = (pageWidth - desiredLogoWidth) / 2;
+        const logoY = 14; // visually centered in header bar
+        try {
+          doc.addImage(logoPngDataUrl, "PNG", logoX, logoY, desiredLogoWidth, desiredLogoHeight);
+        } catch {
+          // ignore logo failure
+        }
+      }
       // Subtitle below logo
       doc.setFontSize(12);
       doc.setTextColor(...LIME_GREEN);
